@@ -18,9 +18,3 @@
 #    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 set -euo pipefail
-
-script_dir="$(readlink -f "$(dirname "$0")")"
-
-source "$script_dir/header.bash"
-source "$script_dir/libpacsync.bash"
-source "$script_dir/main.bash"
