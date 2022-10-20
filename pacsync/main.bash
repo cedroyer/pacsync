@@ -15,6 +15,33 @@
 #    with this program; if not, write to the Free Software Foundation, Inc.,
 #    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
+cmd=${1:-'help'}
+
+script_dir="$(readlink -f "$(dirname "$0")")"
+
+function print_help {
+  cat << EOF
+pacsync ([-h|--help|help]|sync)
+  -h/--help/help    print this help
+  sync              perform the sync
+
+pacsync synchronize packages/groups declare in /etc/pacsync.d/* on current
+system. Means it will add all missing packages/groups (and dependencies) and
+remove all packages (and dependencies) not declared.
+EOF
+}
+
+if [[ "$cmd" = 'help' ]] || [[ "$cmd" = '--help' ]] || [[ "$cmd" = '-h' ]]
+then
+  print_help
+  exit 0
+elif [[ "$cmd" != 'sync' ]]
+then
+  echo "Unknown command ${cmd}"
+  print_help
+  exit 1
+fi
+
 # working_dir
 tmp_dir=$(mktemp -d /tmp/pacsync.XXXXXXXXXX)
 trap 'rm -r "'"$tmp_dir"'"' EXIT
