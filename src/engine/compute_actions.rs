@@ -19,7 +19,29 @@
 
 use std::{collections::HashSet, hash::Hash};
 
-pub type PackageOrGroup = String;
+#[derive(PartialEq, Eq, Hash, Debug, Clone)]
+pub enum PackageManager {
+    PACMAN,
+    LOCAL,
+}
+
+#[derive(PartialEq, Eq, Hash, Debug, Clone)]
+pub struct PackageOrGroup {
+    name: String,
+    manager: PackageManager,
+}
+
+impl PackageOrGroup {
+    pub fn new(name: String, manager: PackageManager) -> Self {
+        PackageOrGroup{name, manager}
+    }
+}
+
+#[derive(PartialEq, Debug)]
+pub struct Actions {
+    to_add: HashSet<PackageOrGroup>,
+    to_delete: HashSet<PackageOrGroup>,
+}
 
 #[derive(Eq, Debug)]
 pub struct Package {
@@ -39,11 +61,6 @@ impl PartialEq for Package {
     }
 }
 
-#[derive(PartialEq, Debug)]
-pub struct Actions {
-    to_add: HashSet<PackageOrGroup>,
-    to_delete: HashSet<PackageOrGroup>,
-}
 
 impl Package {
     pub fn new(name: String, group: Option<String>) -> Package {
@@ -56,24 +73,23 @@ pub fn compute_actions(reference: HashSet<PackageOrGroup>, current: HashSet<Pack
         HashSet::from_iter(current.iter().filter_map(|p| p.group.as_ref()));
     let current_packages: std::collections::HashSet<&String> =
         HashSet::from_iter(current.iter().map(|p| &p.name));
+    let reference_packages: std::collections::HashSet<&String> =
+        HashSet::from_iter(reference.iter().map(|p| &p.name));
     let to_add = HashSet::from_iter(
         reference
-            .iter()
-            .filter(|&p_or_g| {
-                !(current_packages.contains(p_or_g) || current_groups.contains(p_or_g))
-            })
-            .map(|p_or_g| p_or_g.clone()),
+        .iter()
+        .filter(|&p_or_g| {
+            !(current_packages.contains(&p_or_g.name) || current_groups.contains(&p_or_g.name))
+        })
+        .map(|p_or_g| p_or_g.clone()),
     );
     let to_delete = HashSet::from_iter(
         current
-            .iter()
-            .filter(|&p| !(reference.contains(&p.name) || p.group.as_ref().is_none_or(|g| reference.contains(g))))
-            .map(|p| p.name.clone()),
+        .iter()
+        .filter(|&p| !(reference_packages.contains(&p.name) || p.group.as_ref().is_none_or(|g| reference_packages.contains(g))))
+        .map(|p| PackageOrGroup::new(p.name.clone(), PackageManager::PACMAN)),
     );
-    Actions {
-        to_add: to_add,
-        to_delete: to_delete,
-    }
+    Actions {to_add, to_delete}
 }
 
 #[cfg(test)]
@@ -84,42 +100,32 @@ mod tests {
 
     #[test]
     fn nominal_case() {
+        // Given 
         let mut reference = HashSet::new();
-        reference.insert("to_keep1".to_string());
-        reference.insert("to_keep2".to_string());
-        reference.insert("to_keep3".to_string());
-        reference.insert("to_add1".to_string());
+        reference.insert(PackageOrGroup::new("to_keep1".to_string(), PackageManager::PACMAN));
+        reference.insert(PackageOrGroup::new("to_keep2".to_string(), PackageManager::PACMAN));
+        reference.insert(PackageOrGroup::new("to_keep3".to_string(), PackageManager::LOCAL));
+        reference.insert(PackageOrGroup::new("to_add1".to_string(), PackageManager::PACMAN));
+        reference.insert(PackageOrGroup::new("to_add2".to_string(), PackageManager::LOCAL));
 
         let mut current = HashSet::new();
-        current.insert(Package {
-            name: "to_keep1".to_string(),
-            group: Some("a group".to_string()),
-        });
-        current.insert(Package {
-            name: "a package".to_string(),
-            group: Some("to_keep2".to_string()),
-        });
-        current.insert(Package {
-            name: "another package".to_string(),
-            group: Some("to_keep2".to_string()),
-        });
-        current.insert(Package {
-            name: "to_keep3".to_string(),
-            group: None,
-        });
-        current.insert(Package {
-            name: "to_rm1".to_string(),
-            group: Some("a group".to_string()),
-        });
-
-        let actions = compute_actions(reference, current);
+        current.insert(Package::new("to_keep1".to_string(), Some("a group".to_string())));
+        current.insert(Package::new("a package".to_string(), Some("to_keep2".to_string())));
+        current.insert(Package::new("another package".to_string(),Some("to_keep2".to_string())));
+        current.insert(Package::new("to_keep3".to_string(), None));
+        current.insert(Package::new("to_rm1".to_string(), Some("a group".to_string())));
 
         let mut expected_to_add = HashSet::new();
-        expected_to_add.insert("to_add1".to_string());
+        expected_to_add.insert(PackageOrGroup::new("to_add1".to_string(), PackageManager::PACMAN));
+        expected_to_add.insert(PackageOrGroup::new("to_add2".to_string(), PackageManager::LOCAL));
 
         let mut expected_to_rm = HashSet::new();
-        expected_to_rm.insert("to_rm1".to_string());
+        expected_to_rm.insert(PackageOrGroup::new("to_rm1".to_string(), PackageManager::PACMAN));
 
+        // When
+        let actions = compute_actions(reference, current);
+
+        // Then
         assert_eq!(
             actions,
             Actions {
