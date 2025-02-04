@@ -17,14 +17,26 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-use std::collections::HashSet;
+use std::{collections::HashSet, hash::Hash};
 
 pub type PackageOrGroup = String;
 
-#[derive(PartialEq, Eq, Hash, Debug)]
+#[derive(Eq, Debug)]
 pub struct Package {
     name: String,
-    group: String,
+    group: Option<String>,
+}
+
+impl Hash for Package {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.name.hash(state);
+    }
+}
+
+impl PartialEq for Package {
+    fn eq(&self, other: &Self) -> bool {
+        self.name.eq(&other.name)
+    }
 }
 
 #[derive(PartialEq, Debug)]
@@ -33,9 +45,15 @@ pub struct Actions {
     to_delete: HashSet<PackageOrGroup>,
 }
 
+impl Package {
+    pub fn new(name: String, group: Option<String>) -> Package {
+        Package{name, group}
+    }
+}
+
 pub fn compute_actions(reference: HashSet<PackageOrGroup>, current: HashSet<Package>) -> Actions {
     let current_groups: std::collections::HashSet<&String> =
-        HashSet::from_iter(current.iter().map(|p| &p.group));
+        HashSet::from_iter(current.iter().filter_map(|p| p.group.as_ref()));
     let current_packages: std::collections::HashSet<&String> =
         HashSet::from_iter(current.iter().map(|p| &p.name));
     let to_add = HashSet::from_iter(
@@ -49,7 +67,7 @@ pub fn compute_actions(reference: HashSet<PackageOrGroup>, current: HashSet<Pack
     let to_delete = HashSet::from_iter(
         current
             .iter()
-            .filter(|&p| !(reference.contains(&p.name) || reference.contains(&p.group)))
+            .filter(|&p| !(reference.contains(&p.name) || p.group.as_ref().is_none_or(|g| reference.contains(g))))
             .map(|p| p.name.clone()),
     );
     Actions {
@@ -60,6 +78,8 @@ pub fn compute_actions(reference: HashSet<PackageOrGroup>, current: HashSet<Pack
 
 #[cfg(test)]
 mod tests {
+    use std::hash::{DefaultHasher, Hasher};
+
     use super::*;
 
     #[test]
@@ -73,23 +93,23 @@ mod tests {
         let mut current = HashSet::new();
         current.insert(Package {
             name: "to_keep1".to_string(),
-            group: "a group".to_string(),
+            group: Some("a group".to_string()),
         });
         current.insert(Package {
             name: "a package".to_string(),
-            group: "to_keep2".to_string(),
+            group: Some("to_keep2".to_string()),
         });
         current.insert(Package {
             name: "another package".to_string(),
-            group: "to_keep2".to_string(),
+            group: Some("to_keep2".to_string()),
         });
         current.insert(Package {
             name: "to_keep3".to_string(),
-            group: "a group".to_string(),
+            group: None,
         });
         current.insert(Package {
             name: "to_rm1".to_string(),
-            group: "a group".to_string(),
+            group: Some("a group".to_string()),
         });
 
         let actions = compute_actions(reference, current);
@@ -107,5 +127,22 @@ mod tests {
                 to_delete: expected_to_rm
             }
         );
+    }
+
+    #[test]
+    fn package_hash() {
+        // Given
+        let package_with_group = Package::new("baobab".to_string(), Some("gnome".to_string()));
+        let package_without_group =Package::new("baobab".to_string(), None);
+        let mut hasher_with_group = DefaultHasher::new();
+        let mut hasher_without_group = DefaultHasher::new();
+
+        // When
+        package_with_group.hash(&mut hasher_with_group);
+        package_without_group.hash(&mut hasher_without_group);
+
+
+        // Then
+        assert_eq!(hasher_with_group.finish(), hasher_without_group.finish())
     }
 }
