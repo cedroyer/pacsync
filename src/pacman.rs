@@ -22,7 +22,7 @@ use std::fmt::Display;
 use std::str::Utf8Error;
 use std::{io, str};
 use std::process::Command;
-use crate::engine::compute_actions::Package;
+use crate::engine::compute_actions::{Package, PackageManager};
 use crate::compute_actions::Actions;
 
 #[derive(Debug)]
@@ -38,7 +38,19 @@ pub fn get_explicit_installed_packages() -> Result<HashSet<Package>, PacmanError
     Ok(merge_packages(groups, packages))
 }
 
-pub fn apply_actions(actions: Actions) -> io::Result<()> {
+pub fn apply_actions(actions: &Actions) -> io::Result<()> {
+    /*if !actions.to_add.is_empty() {
+        let add = Command::new("pacman").
+            arg("-S").args(actions.to_add.iter().filter(|&p_or_g| p_or_g.manager == PackageManager::PACMAN).map(|p_or_g| p_or_g.name.clone())).output();
+        println!("{:?}", add);
+    }*/
+
+    let to_add: Vec<&str> = actions.to_add.iter().filter(|&p_or_g| p_or_g.manager == PackageManager::PACMAN).map(|p_or_g| p_or_g.name.as_str()).collect();
+    println!("pacman -S {}", to_add.join(" "));
+
+    let to_delete: Vec<&str> = actions.to_delete.iter().filter(|&p_or_g| p_or_g.manager == PackageManager::PACMAN).map(|p_or_g| p_or_g.name.as_str()).collect();
+    println!("pacman -R {}", to_delete.join(" "));
+
     Ok(())
 }
 

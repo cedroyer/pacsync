@@ -17,7 +17,7 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-use std::{collections::HashSet, hash::Hash};
+use std::{collections::HashSet, fmt::{Debug, Display}, hash::Hash};
 
 #[derive(PartialEq, Eq, Hash, Debug, Clone)]
 pub enum PackageManager {
@@ -27,8 +27,8 @@ pub enum PackageManager {
 
 #[derive(PartialEq, Eq, Hash, Debug, Clone)]
 pub struct PackageOrGroup {
-    name: String,
-    manager: PackageManager,
+    pub name: String,
+    pub manager: PackageManager,
 }
 
 impl PackageOrGroup {
@@ -39,8 +39,8 @@ impl PackageOrGroup {
 
 #[derive(PartialEq, Debug)]
 pub struct Actions {
-    to_add: HashSet<PackageOrGroup>,
-    to_delete: HashSet<PackageOrGroup>,
+    pub to_add: HashSet<PackageOrGroup>,
+    pub to_delete: HashSet<PackageOrGroup>,
 }
 
 #[derive(Eq, Debug)]
@@ -86,10 +86,33 @@ pub fn compute_actions(reference: HashSet<PackageOrGroup>, current: HashSet<Pack
     let to_delete = HashSet::from_iter(
         current
         .iter()
-        .filter(|&p| !(reference_packages.contains(&p.name) || p.group.as_ref().is_none_or(|g| reference_packages.contains(g))))
+        .filter(|&p| !(reference_packages.contains(&p.name) || p.group.as_ref().is_some_and(|g| reference_packages.contains(g))))
         .map(|p| PackageOrGroup::new(p.name.clone(), PackageManager::PACMAN)),
     );
     Actions {to_add, to_delete}
+}
+
+impl Display for Actions {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "To add:\n")?;
+        for package_or_group in self.to_add.iter() {
+            write!(f, "\t- {} ({})\n", package_or_group.name, package_or_group.manager)?;
+        }
+        write!(f, "To delete:\n")?;
+        for package_or_group in self.to_delete.iter() {
+            write!(f, "\t- {} ({})\n", package_or_group.name, package_or_group.manager)?;
+        }
+        Ok(())
+    }
+}
+
+impl Display for PackageManager {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PackageManager::PACMAN => write!(f, "pacman"),
+            PackageManager::LOCAL => write!(f, "local")
+        }
+    }
 }
 
 #[cfg(test)]
@@ -114,6 +137,7 @@ mod tests {
         current.insert(Package::new("another package".to_string(),Some("to_keep2".to_string())));
         current.insert(Package::new("to_keep3".to_string(), None));
         current.insert(Package::new("to_rm1".to_string(), Some("a group".to_string())));
+        current.insert(Package::new("to_rm2".to_string(), None));
 
         let mut expected_to_add = HashSet::new();
         expected_to_add.insert(PackageOrGroup::new("to_add1".to_string(), PackageManager::PACMAN));
@@ -121,6 +145,7 @@ mod tests {
 
         let mut expected_to_rm = HashSet::new();
         expected_to_rm.insert(PackageOrGroup::new("to_rm1".to_string(), PackageManager::PACMAN));
+        expected_to_rm.insert(PackageOrGroup::new("to_rm2".to_string(), PackageManager::PACMAN));
 
         // When
         let actions = compute_actions(reference, current);

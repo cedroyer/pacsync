@@ -27,14 +27,15 @@ pub mod engine;
 pub mod pacman;
 
 fn main() {
-    let reference = reader::read(Path::new("/etc/pacsync.d")).expect("Cannot read configuration.");
+    let reference = reader::read(Path::new("/etc/pacsync.d/target/")).expect("Cannot read configuration.");
     let current = pacman::get_explicit_installed_packages().expect("Cannot query pacman.");
     let actions = compute_actions::compute_actions(reference, current);
-    println!("actions to be done: {:?}", actions);
+    println!("# actions to be done\n{}", actions);
     println!("do you agree [y/n] ?");
     let answer = get_answer().unwrap();
-    if answer == "y" {
-        pacman::apply_actions(actions).expect("Cannot apply actions.");
+    println!("{}", answer);
+    if answer == "y\n" {
+        pacman::apply_actions(&actions).expect("Cannot apply actions.");
     }
 }
 
