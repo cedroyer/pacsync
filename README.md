@@ -19,7 +19,7 @@ $ pacsync
 
 ## Example of configuration files:
 
-`/etc/pacsync.d/console`
+`/etc/pacsync.d/target/console`
 ```
 # you can add comments
 vim
@@ -29,7 +29,7 @@ base
 base-devel
 ```
 
-`/etc/pacsync.d/desktop`
+`/etc/pacsync.d/target/desktop`
 ```
 # separate by file allow you to reuse some files on multiple machines.
 gnome
