@@ -31,11 +31,14 @@ fn main() {
     let current = pacman::get_explicit_installed_packages().expect("Cannot query pacman.");
     let actions = compute_actions::compute_actions(reference, current);
     println!("# actions to be done\n{}", actions);
-    println!("do you agree [y/n] ?");
+    println!("apply/print/no abort [y/p/n] ?");
     let answer = get_answer().unwrap();
-    println!("{}", answer);
     if answer == "y\n" {
         pacman::apply_actions(&actions).expect("Cannot apply actions.");
+    } else if answer == "p\n" {
+        pacman::print_actions(&actions);
+    } else {
+        println!("Abort")
     }
 }
 

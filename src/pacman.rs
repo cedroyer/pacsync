@@ -20,8 +20,8 @@
 use std::collections::HashSet;
 use std::fmt::Display;
 use std::str::Utf8Error;
-use std::{io, str};
-use std::process::Command;
+use std::{io, result, str};
+use std::process::{Command, ExitStatus};
 use crate::engine::compute_actions::{Package, PackageManager};
 use crate::compute_actions::Actions;
 
@@ -30,31 +30,61 @@ pub enum PacmanError {
     ParseGroupError(String),
     Utf8(str::Utf8Error),
     Io(io::Error),
+    PacmanErrorStatus(String, ExitStatus),
 }
 
-pub fn get_explicit_installed_packages() -> Result<HashSet<Package>, PacmanError> {
+pub type Result<T> = result::Result<T, PacmanError>;
+
+pub fn get_explicit_installed_packages() -> Result<HashSet<Package>> {
     let groups= parse_pacman_groups(Command::new("pacman").arg("-Qeqg").output()?.stdout)?;
     let packages= parse_pacman_packages(Command::new("pacman").arg("-Qeq").output()?.stdout)?;
     Ok(merge_packages(groups, packages))
 }
 
-pub fn apply_actions(actions: &Actions) -> io::Result<()> {
-    /*if !actions.to_add.is_empty() {
-        let add = Command::new("pacman").
-            arg("-S").args(actions.to_add.iter().filter(|&p_or_g| p_or_g.manager == PackageManager::PACMAN).map(|p_or_g| p_or_g.name.clone())).output();
-        println!("{:?}", add);
-    }*/
+pub fn print_actions(actions: &Actions) {
+    if !actions.to_add.is_empty() {
+        println!("{:?}", build_install_command(actions));
+    }
+    if !actions.to_delete.is_empty() {
+        println!("{:?}", build_remove_command(actions));
+    }
+}
 
-    let to_add: Vec<&str> = actions.to_add.iter().filter(|&p_or_g| p_or_g.manager == PackageManager::PACMAN).map(|p_or_g| p_or_g.name.as_str()).collect();
-    println!("pacman -S {}", to_add.join(" "));
-
-    let to_delete: Vec<&str> = actions.to_delete.iter().filter(|&p_or_g| p_or_g.manager == PackageManager::PACMAN).map(|p_or_g| p_or_g.name.as_str()).collect();
-    println!("pacman -R {}", to_delete.join(" "));
-
+pub fn apply_actions(actions: &Actions) -> Result<()> {
+    if !actions.to_add.is_empty() {
+        let mut add = build_install_command(actions);
+        let status = add.status()?;
+        if !status.success() {
+            return Err(PacmanError::PacmanErrorStatus("Pacman install command failed".to_string(), status));
+        }
+    }
+    if !actions.to_delete.is_empty() {
+        let mut delete = build_remove_command(actions);
+        let status = delete.status()?;
+        if !status.success() {
+            return Err(PacmanError::PacmanErrorStatus("Pacman remove command failed".to_string(), status));
+        }
+    }
     Ok(())
 }
 
-fn parse_pacman_groups(output: Vec<u8>) -> Result<HashSet<Package>, PacmanError> {
+fn build_install_command(actions: &Actions) -> Command {
+    let mut cmd = Command::new("sudo");
+    cmd.arg("pacman");
+    cmd.arg("-S");
+    cmd.args(actions.to_add.iter().filter(|&p_or_g| p_or_g.manager == PackageManager::PACMAN).map(|p_or_g| p_or_g.name.clone()));
+    cmd
+}
+
+fn build_remove_command(actions: &Actions) -> Command {
+    let mut cmd = Command::new("sudo");
+    cmd.arg("pacman");
+    cmd.arg("-R");
+    cmd.args(actions.to_delete.iter().filter(|&p_or_g| p_or_g.manager == PackageManager::PACMAN).map(|p_or_g| p_or_g.name.clone()));
+    cmd
+}
+
+fn parse_pacman_groups(output: Vec<u8>) -> Result<HashSet<Package>> {
    let utf8_output = String::from(str::from_utf8(&output)?);
    let mut groups  = HashSet::new();
    let mut errors = Vec::new();
@@ -79,12 +109,12 @@ fn parse_pacman_groups(output: Vec<u8>) -> Result<HashSet<Package>, PacmanError>
    }
 }
 
-fn parse_pacman_packages(output: Vec<u8>) -> Result<HashSet<Package>, str::Utf8Error> {
+fn parse_pacman_packages(output: Vec<u8>) -> Result<HashSet<Package>> {
    let utf8_output = String::from(str::from_utf8(&output)?);
    Ok(HashSet::from_iter(utf8_output.split("\n").filter(|row| row.len() > 0).map(|row| Package::new(row.to_string(), Option::None))))
 }
 
-fn parse_group(row: &str) -> Result<Package, PacmanError> {
+fn parse_group(row: &str) -> Result<Package> {
     let values: Vec<&str> = row.split(" ").collect();
     if values.len() != 2 {
         return Err(PacmanError::ParseGroupError(row.to_string()));
@@ -121,6 +151,7 @@ impl Display for PacmanError {
             PacmanError::ParseGroupError(err) => write!(f, "parsing group error: {err}"),
             PacmanError::Utf8(err) => write!(f, "cannot parse Utf8: {err}"),
             PacmanError::Io(err) => write!(f, "cannot read pacman output: {err}"),
+            PacmanError::PacmanErrorStatus(message, status) => write!(f, "{message} with status {status}"),
         }
     }
 }
