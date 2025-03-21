@@ -94,15 +94,29 @@ pub fn compute_actions(reference: HashSet<PackageOrGroup>, current: HashSet<Pack
 
 impl Display for Actions {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "To add:\n")?;
-        for package_or_group in self.to_add.iter() {
-            write!(f, "\t- {} ({})\n", package_or_group.name, package_or_group.manager)?;
+        if self.is_empty() {
+            write!(f, "Nothing to do")?;
+            return Ok(());
         }
-        write!(f, "To delete:\n")?;
-        for package_or_group in self.to_delete.iter() {
-            write!(f, "\t- {} ({})\n", package_or_group.name, package_or_group.manager)?;
+        if !self.to_add.is_empty() {
+            write!(f, "To add:\n")?;
+            for package_or_group in self.to_add.iter() {
+                write!(f, "\t- {} ({})\n", package_or_group.name, package_or_group.manager)?;
+            }
+        }
+        if !self.to_delete.is_empty() {
+            write!(f, "To delete:\n")?;
+            for package_or_group in self.to_delete.iter() {
+                write!(f, "\t- {} ({})\n", package_or_group.name, package_or_group.manager)?;
+            }
         }
         Ok(())
+    }
+}
+
+impl Actions {
+    pub fn is_empty(&self) -> bool {
+        self.to_add.is_empty() && self.to_delete.is_empty()
     }
 }
 

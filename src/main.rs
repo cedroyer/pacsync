@@ -31,6 +31,9 @@ fn main() {
     let current = pacman::get_explicit_installed_packages().expect("Cannot query pacman.");
     let actions = compute_actions::compute_actions(reference, current);
     println!("# actions to be done\n{}", actions);
+    if actions.is_empty() {
+        return;
+    }
     println!("apply/print/no abort [y/p/n] ?");
     let answer = get_answer().unwrap();
     if answer == "y\n" {
