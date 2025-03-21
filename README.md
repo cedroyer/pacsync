@@ -10,7 +10,7 @@ An utility to simplify your package management.
 
 ## Usage
 
-Add file(s) in `/etc/pacsync.d` with required packages for your system.
+Add file(s) in `/etc/pacsync.d/target/` with required packages for your system.
 
 And run:
 ```bash
@@ -33,4 +33,7 @@ base-devel
 ```
 # separate by file allow you to reuse some files on multiple machines.
 gnome
+
+# identify manually managed packages
+local/pacsync
 ```
